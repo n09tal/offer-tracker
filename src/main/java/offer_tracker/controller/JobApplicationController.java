@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import offer_tracker.dto.StatusUpdateRequest;
 
 @RestController
 @RequestMapping("/api/applications")
@@ -44,6 +45,15 @@ public class JobApplicationController {
     public JobApplicationResponse update(@PathVariable Long id,
                                          @Valid @RequestBody JobApplicationRequest request) {
         return service.update(id, request);
+    }
+
+    @PatchMapping("/{id}/status")
+    @Operation(summary = "Change application status",
+               description = "Allowed transitions: APPLIED -> INTERVIEWING or REJECTED; "
+               + "INTERVIEWING -> OFFER or REJECTED. OFFER and REJECTED are final.")
+    public JobApplicationResponse updateStatus(@PathVariable Long id, 
+                                               @Valid @RequestBody StatusUpdateRequest request) {
+        return service.updateStatus(id, request.status());
     }
 
     @DeleteMapping("/{id}")

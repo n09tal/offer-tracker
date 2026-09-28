@@ -4,5 +4,13 @@ public enum ApplicationStatus {
     APPLIED,
     INTERVIEWING,
     OFFER,
-    REJECTED
+    REJECTED;
+
+    public boolean canTransitionTo(ApplicationStatus target) {
+        return switch (this) {
+            case APPLIED -> target == INTERVIEWING || target == REJECTED;
+            case INTERVIEWING -> target == OFFER || target == REJECTED;
+            case OFFER, REJECTED -> false;
+        };
+    }
 }

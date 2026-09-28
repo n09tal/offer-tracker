@@ -1,5 +1,8 @@
 package offer_tracker.service;
 
+import offer_tracker.entity.ApplicationStatus;
+import offer_tracker.exception.InvalidStatusTransitionException;
+
 import lombok.RequiredArgsConstructor;
 import offer_tracker.dto.JobApplicationRequest;
 import offer_tracker.dto.JobApplicationResponse;
@@ -52,6 +55,17 @@ public class JobApplicationService {
     @Transactional
     public void delete(Long id) {
         repository.delete(findOwned(id));
+    }
+
+    @Transactional
+    public JobApplicationResponse updateStatus(Long id, ApplicationStatus newStatus) {
+        JobApplication app = findOwned(id);
+        ApplicationStatus current = app.getStatus();
+        if (!current.canTransitionTo(newStatus)) {
+            throw new InvalidStatusTransitionException(current, newStatus);
+        }
+        app.setStatus(newStatus);
+        return JobApplicationResponse.from(repository.saveAndFlush(app));
     }
 
     private JobApplication findOwned(Long id) {
