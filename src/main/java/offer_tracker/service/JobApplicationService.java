@@ -2,6 +2,7 @@ package offer_tracker.service;
 
 import offer_tracker.entity.ApplicationStatus;
 import offer_tracker.exception.InvalidStatusTransitionException;
+import offer_tracker.security.CurrentUser;
 
 import lombok.RequiredArgsConstructor;
 import offer_tracker.dto.JobApplicationRequest;
@@ -18,15 +19,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JobApplicationService {
 
-    // TODO: replace with the user id from the JWT token
-    private static final Long CURRENT_USER_ID = 1L;
-
     private final JobApplicationRepository repository;
+    private final CurrentUser currentUser;
 
     @Transactional
     public JobApplicationResponse create(JobApplicationRequest request) {
         JobApplication app = new JobApplication();
-        app.setUserId(CURRENT_USER_ID);
+        app.setUserId(currentUser.id());
         app.setCompany(request.company());
         app.setPosition(request.position());
         return JobApplicationResponse.from(repository.save(app));
@@ -34,7 +33,7 @@ public class JobApplicationService {
 
     @Transactional(readOnly = true)
     public List<JobApplicationResponse> list() {
-        return repository.findByUserIdOrderByCreatedAtDesc(CURRENT_USER_ID).stream()
+        return repository.findByUserIdOrderByCreatedAtDesc(currentUser.id()).stream()
                 .map(JobApplicationResponse::from)
                 .toList();
     }
@@ -69,7 +68,7 @@ public class JobApplicationService {
     }
 
     private JobApplication findOwned(Long id) {
-        return repository.findByIdAndUserId(id, CURRENT_USER_ID)
+        return repository.findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ResourceNotFoundException("Job application not found: " + id));
     }
 }
