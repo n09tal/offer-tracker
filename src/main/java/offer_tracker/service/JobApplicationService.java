@@ -10,10 +10,16 @@ import offer_tracker.dto.JobApplicationResponse;
 import offer_tracker.entity.JobApplication;
 import offer_tracker.exception.ResourceNotFoundException;
 import offer_tracker.repository.JobApplicationRepository;
+import offer_tracker.dto.PageResponse;
+import offer_tracker.repository.JobApplicationSpecifications;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -32,10 +38,14 @@ public class JobApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<JobApplicationResponse> list() {
-        return repository.findByUserIdOrderByCreatedAtDesc(currentUser.id()).stream()
-                .map(JobApplicationResponse::from)
-                .toList();
+    public PageResponse<JobApplicationResponse> search(String company, ApplicationStatus status, int page, int size) {
+        Specification<JobApplication> spec = Specification.allOf(
+                JobApplicationSpecifications.belongsTo(currentUser.id()),
+                JobApplicationSpecifications.hasStatus(status),
+                JobApplicationSpecifications.companyContains(company)
+        );
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return PageResponse.from(repository.findAll(spec, pageable).map(JobApplicationResponse::from));
     }
 
     @Transactional(readOnly = true)

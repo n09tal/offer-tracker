@@ -3,14 +3,19 @@ package offer_tracker.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import offer_tracker.dto.PageResponse;
+import offer_tracker.entity.ApplicationStatus;
+
 import offer_tracker.dto.JobApplicationRequest;
 import offer_tracker.dto.JobApplicationResponse;
 import offer_tracker.service.JobApplicationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import offer_tracker.dto.StatusUpdateRequest;
 
 @RestController
@@ -29,9 +34,15 @@ public class JobApplicationController {
     }
 
     @GetMapping
-    @Operation(summary = "List my job applications")
-    public List<JobApplicationResponse> list() {
-        return service.list();
+    @Operation(summary = "Search my job applications",
+            description = "Filter by company (case-insensitive, partial match) and status. "
+                    + "Results are sorted by creation time, newest first.")
+    public PageResponse<JobApplicationResponse> search(
+            @RequestParam(required = false) String company,
+            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+        return service.search(company, status, page, size);
     }
 
     @GetMapping("/{id}")
