@@ -14,6 +14,108 @@ REST API for tracking job applications: company, role, status, interview rounds,
 - Generate interview questions from a job description through an OpenAI-compatible chat API (default: Gemini) and store them on that application. The model call runs outside a database transaction. Missing API key returns 503; upstream or parse failures return 502 and leave existing questions unchanged.
 - Errors use RFC 9457 `ProblemDetail`. Interactive docs: Swagger UI.
 
+## Request flow
+
+```mermaid
+flowchart TB
+  client["Swagger UI or HTTP client"]
+
+  subgraph app["Offer Tracker API · Spring Boot"]
+    gate{"SecurityFilterChain<br/>stateless, no HTTP session"}
+    jwt["JwtAuthenticationFilter<br/>verify Bearer token, read user id"]
+    auth["AuthController<br/>/api/auth/** is public"]
+    apps["JobApplicationController"]
+    rounds["InterviewRoundController"]
+    questions["InterviewQuestionController"]
+    errors["GlobalExceptionHandler<br/>RFC 9457 ProblemDetail"]
+
+    authSvc["AuthService<br/>BCrypt password hash, issue JWT"]
+    appSvc["JobApplicationService<br/>status state machine, every query scoped by user_id"]
+    roundSvc["InterviewRoundService<br/>first round can move APPLIED to INTERVIEWING"]
+    questionSvc["InterviewQuestionService"]
+    current["CurrentUser<br/>user id from SecurityContext"]
+    ai["AiQuestionClient<br/>outside any database transaction<br/>10s connect timeout, 60s read timeout"]
+    repo["Spring Data JPA repositories"]
+  end
+
+  db[("PostgreSQL")]
+  gemini["Gemini<br/>OpenAI-compatible POST /chat/completions"]
+
+  client --> gate
+  gate -->|"register, login, Swagger"| auth
+  gate -->|"all other /api/**"| jwt
+  jwt -->|"valid signature and not expired"| apps
+  jwt --> rounds
+  jwt --> questions
+  jwt -->|"missing or invalid token"| denied["401 Unauthorized"]
+
+  auth --> authSvc
+  apps --> appSvc
+  rounds --> roundSvc
+  questions --> questionSvc
+
+  appSvc --> current
+  roundSvc --> current
+  questionSvc --> current
+
+  authSvc --> repo
+  appSvc --> repo
+  roundSvc --> repo
+  questionSvc -->|"load the application only if owned by the current user"| repo
+  questionSvc -->|"call the model with no DB transaction open"| ai
+  ai --> gemini
+  questionSvc -->|"after a successful response: short transaction, replace saved questions"| repo
+  repo --> db
+
+  auth -.-> errors
+  apps -.-> errors
+  rounds -.-> errors
+  questions -.-> errors
+```
+
+## Data model
+
+```mermaid
+erDiagram
+  USERS ||--o{ JOB_APPLICATIONS : "user_id"
+  USERS ||--o{ INTERVIEW_ROUNDS : "user_id"
+  USERS ||--o{ INTERVIEW_QUESTIONS : "user_id"
+  JOB_APPLICATIONS ||--o{ INTERVIEW_ROUNDS : "application_id, ON DELETE CASCADE"
+  JOB_APPLICATIONS ||--o{ INTERVIEW_QUESTIONS : "application_id, ON DELETE CASCADE"
+
+  USERS {
+    bigint id PK
+    varchar username UK
+    varchar password_hash
+    timestamp created_at
+  }
+  JOB_APPLICATIONS {
+    bigint id PK
+    bigint user_id
+    varchar company
+    varchar position
+    varchar status
+    timestamp created_at
+    timestamp updated_at
+  }
+  INTERVIEW_ROUNDS {
+    bigint id PK
+    bigint application_id FK
+    bigint user_id
+    varchar round_type
+    timestamp scheduled_at
+    varchar result
+    text notes
+  }
+  INTERVIEW_QUESTIONS {
+    bigint id PK
+    bigint application_id FK
+    bigint user_id
+    text question
+    timestamp created_at
+  }
+```
+
 ## API
 
 | Method | Path | Auth |
